@@ -133,8 +133,8 @@ def acsexplorer_topic_search(keyword, include_shortlist = True):
         tokens = clean_text(var_description).split()
         if any(word in tokens for word in expanded_keywords):
             results.append({
-                "Variable Name": var_name,
                 "Group": var_group,
+                "Variable Name": var_name,
                 "Description": var_description,
                 "Dataset": var_data_info.get("dataset"),
                 "Year": var_data_info.get("year")
@@ -149,9 +149,12 @@ def acsexplorer_topic_search(keyword, include_shortlist = True):
 
             #merging data
             df_shortlist = pd.merge(df_shortlist, df_group, on="Group", how="left")
+            ordered_groups = df["Group"].drop_duplicates().tolist()
+            df_shortlist["Group"] = pd.Categorical(df_shortlist["Group"], categories=ordered_groups, ordered=True)
+            df_shortlist = df_shortlist.sort_values("Group").reset_index(drop=True)
             cols_s = ["Concept"] + [col for col in df_shortlist.columns if col != "Concept"]
+            
             df_shortlist = df_shortlist[cols_s]
-
             df = pd.merge(df, df_group, on="Group", how="left")
             cols = ["Concept"] + [col for col in df.columns if col != "Concept"]
             df = df[cols]
@@ -476,6 +479,7 @@ def visualize_trends(trend_data, variable, output_path="trend_plot.html"):
     Returns:
         str: The file path of the saved plot.
     """
+    import pandas as pd
     import plotly.graph_objects as go
 
     if trend_data.empty:
@@ -580,6 +584,7 @@ def acsexplorer_pipeline_by_location(addresses, geography, variables, year_range
         DataFrame: A df containing the ACS variable informations by year and address.
     """
     import os
+    import pandas as pd
 
     print(f"Step 1: Getting geographic information for addresses: {addresses}...")
     geo_info_list = acsexplorer_get_geo_info(addresses)
@@ -667,6 +672,10 @@ def acsexplorer_pipeline_by_keyword(keyword, geography, year_range, dataset, top
 
     # Combine all trend data into a single DataFrame
     if all_trends:
+        for i, df in enumerate(all_trends):
+            variable = df["Variable Name"].iloc[0]  # 假设每个 DataFrame 都只有一个变量
+            df.rename(columns={"Value": f"Value_{variable}"}, inplace=True)
+
         combined_df = all_trends[0]
         for df in all_trends[1:]:
             combined_df = pd.merge(combined_df, df, on=["NAME", "state", "Year"], how="outer")

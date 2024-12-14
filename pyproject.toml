@@ -1,6 +1,6 @@
 [tool.poetry]
 name="acs_explorer"
-version = "0.1.8"
+version = "0.1.9"
 description = "A python package that helps user to search for and analyze ACS data."
 authors = ["Yiqi Ling"]
 license = "MIT"

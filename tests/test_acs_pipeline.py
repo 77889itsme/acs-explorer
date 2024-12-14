@@ -1,4 +1,4 @@
-from src.acs_explorer.acs_explorer import acsexplorer_pipeline_by_location, acsexplorer_pipeline_by_keyword
+from module.acs_explorer import acsexplorer_pipeline_by_location, acsexplorer_pipeline_by_keyword
 import os
 
 def test_pipeline_by_location():

@@ -1,4 +1,4 @@
-from src.acs_explorer.acs_explorer import acsexplorer_get_geo_info, acsexplorer_get_data, acsexplorer_topic_search, acsexplorer_analyze_trends, acsexplorer_visualize_trends, acsexplorer_generate_report
+from module.acs_explorer import acsexplorer_get_geo_info, acsexplorer_get_data, acsexplorer_topic_search, acsexplorer_analyze_trends, acsexplorer_visualize_trends, acsexplorer_generate_report
 import pandas as pd
 import os
 

@@ -1,4 +1,4 @@
-from module.acs_explorer import acsexplorer_get_geo_info, acsexplorer_get_data, acsexplorer_topic_search, acsexplorer_analyze_trends, acsexplorer_visualize_trends, acsexplorer_generate_report
+from src.acs_explorer.acs_explorer import acsexplorer_get_geo_info, acsexplorer_get_data, acsexplorer_topic_search, acsexplorer_analyze_trends, acsexplorer_visualize_trends, acsexplorer_generate_report
 import pandas as pd
 import os
 
@@ -18,8 +18,8 @@ def test_get_data():
     import pandas as pd
 
     variable = "B28002_001E"  # Internet subscription
-    geography = "state"
-    year = 2020
+    geography = "county"
+    year = 2021
     dataset = "acs5"
 
     data = acsexplorer_get_data(variable, geography, year, dataset)

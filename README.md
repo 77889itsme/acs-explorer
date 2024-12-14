@@ -20,7 +20,7 @@ $ pip install acs_explorer
 
 ## Usage
 
-- TODO
+- [Project Walk Through](https://github.com/77889itsme/acs-explorer/blob/main/Project_Walkthrouh.ipynb)
 
 ## Contributing
 

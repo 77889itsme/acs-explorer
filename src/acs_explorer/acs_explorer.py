@@ -97,11 +97,13 @@ def acsexplorer_get_data(variables, geography, year, dataset, geo_filter=None):
     """
     import pandas as pd
     import requests
-    
+
+    if isinstance(variables, str):
+        variables = [variables]
+
     if geography not in ["state", "county", "tract"]:
         raise ValueError(f"Invalid geography: '{geography}'. Must be one of 'state', 'county' or 'tract'.")
-
-
+    
     # Special handling for census tracts
     if geography == "tract":
         df = acsexplorer_get_data_tract(variables, year, dataset, geo_filter)
@@ -115,7 +117,7 @@ def acsexplorer_get_data(variables, geography, year, dataset, geo_filter=None):
         if geo_filter:
             params.update({f"in={key}": value for key, value in geo_filter.items()})
         
-        base_url = f"https://api.census.gov/data/{year}/{dataset}"
+        base_url = f"https://api.census.gov/data/{year}/acs/{dataset}"
         response = requests.get(base_url, params=params)
         if response.status_code == 200:
             data = response.json()
@@ -174,36 +176,36 @@ def acsexplorer_get_data_tract(variables, year, dataset, geo_filter):
 
 def acsexplorer_analyze_trends(variable, geography, year_range, dataset):
     """
-    Analyze trends for a given variable over a range of years.
+    Analyze trends for a specific variable across a range of years.
 
     Parameters:
-        variable (str): The variable name to analyze.
-        geography (str): The geographic resolution (state, county, or tract).
-        year_range (tuple): The range of years (start_year, end_year).
-        dataset (str): The dataset name (e.g., 'acs1' or 'acs5').
+        variable (str): The variable to analyze.
+        geography (str): Geographic level (e.g., "state").
+        year_range (tuple): A tuple specifying the range of years (start, end).
+        dataset (str): The dataset name (e.g., "acs5").
 
     Returns:
-        pd.DataFrame: A DataFrame containing yearly aggregated data for the variable.
+        pd.DataFrame: A DataFrame containing the trend data across years.
     """
     import pandas as pd
 
-    data = []
-
+    results = []
     for year in range(year_range[0], year_range[1] + 1):
         try:
-            df_data = acsexplorer_get_data(variable, geography, year, dataset)
-            df_data["Year"] = year
-            data.append(df_data)
+            data = acsexplorer_get_data(variable, geography, year, dataset)
+            data["Year"] = year  
+            results.append(data)
         except Exception as e:
             print(f"Failed to fetch data for {variable} in {year}: {e}")
 
-    # Combine all yearly data
-    if data:
-        trend_data = pd.concat(data, ignore_index=True)
+    if results:
+        trend_data = pd.concat(results, ignore_index=True)
+        trend_data.rename(columns={variable: "value"}, inplace=True)  
         return trend_data
     else:
         print("No data available for the specified range.")
         return pd.DataFrame()
+
 
 
 def acsexplorer_visualize_trends(trend_data, variable, output_path="trend_plot.png"):
@@ -243,50 +245,6 @@ def acsexplorer_visualize_trends(trend_data, variable, output_path="trend_plot.p
 
     print(f"Plot saved to {output_path}")
     return output_path
-
-
-def acsexplorer_generate_report(keyword, geography, year_range, dataset, output_format="HTML"):
-    """
-    Generate a comprehensive report for a given keyword and time range.
-
-    Parameters:
-        keyword (str): The keyword to search for.
-        geography (str): The geographic resolution (state, county, or tract).
-        year_range (tuple): The range of years (start_year, end_year).
-        dataset (str): The dataset name (e.g., 'acs1' or 'acs5').
-        output_format (str): The format of the output report ("HTML" or "PDF").
-
-    Returns:
-        str: The path to the generated report.
-    """
-    import pandas as pd
-
-    # Step 1: Search for variables
-    df, _ = acsexplorer_topic_search(keyword)
-    print(f"Found {len(df)} variables related to '{keyword}'")
-
-    # Step 2: Analyze trends and generate plots for the first variable
-    variable = df.iloc[0]["Variable Name"]
-    trend_data = acsexplorer_analyze_trends(variable, geography, year_range, dataset)
-    plot_path = acsexplorer_visualize_trends(trend_data, variable)
-
-    # Step 3: Generate a simple HTML report
-    report_content = f"""
-    <h1>ACS Explorer Report</h1>
-    <p><strong>Keyword:</strong> {keyword}</p>
-    <p><strong>Geography:</strong> {geography}</p>
-    <p><strong>Year Range:</strong> {year_range[0]} - {year_range[1]}</p>
-    <h2>Variables</h2>
-    {df.to_html(index=False)}
-    <h2>Trend Analysis</h2>
-    <img src="{plot_path}" alt="Trend Plot">
-    """
-    report_path = "report.html"
-    with open(report_path, "w") as f:
-        f.write(report_content)
-
-    print(f"Report saved to {report_path}")
-    return report_path
 
 
 def acsexplorer_topic_search(keyword, include_shortlist = True):
@@ -477,7 +435,6 @@ def cache_api_requests(cache_dir="cache"):
             cache_file = os.path.join(cache_dir, f"{dataset.replace('/', '_')}_{year}.json")
 
             if os.path.exists(cache_file):            # Skip if file is already cached
-                print(f"Cache exists for {dataset}, {year}. Skipping download.")
                 continue
 
             # Fetch data from API
@@ -531,3 +488,155 @@ def process_df(df, keyword):
     grouped = grouped.drop(columns=['Exact Match'])
 
     return grouped
+
+
+def acsexplorer_generate_report(data_df, variables, output_path):
+    """
+    Generate a comprehensive report for the given data.
+
+    Parameters:
+        data_df (pd.DataFrame): The data fetched using acsexplorer_get_data.
+        variables (list): A list of variables included in the dataset.
+        output_path (str): The file path for the generated report.
+
+    Returns:
+        None
+    """
+    import pandas as pd
+
+    print(f"Step 1: Analyzing trends for variables: {variables}...")
+    trend_data = {}
+    for variable in variables:
+        if variable in data_df.columns:
+            trend = data_df.groupby("Year")[variable].sum().reset_index(name=variable)
+            trend_data[variable] = trend
+
+    print(f"Step 2: Writing the report to {output_path}...")
+    with open(output_path, "w") as f:
+        f.write(f"<h1>Comprehensive Report</h1>\n")
+        if "Year" in data_df.columns:
+            year_range = (data_df["Year"].min(), data_df["Year"].max())
+            f.write(f"<h2>Year Range: {year_range[0]} - {year_range[1]}</h2>\n")
+        if "geography" in data_df.columns:
+            geography = data_df["geography"].iloc[0] if "geography" in data_df.columns else "Unknown"
+            f.write(f"<h2>Geography: {geography}</h2>\n")
+
+        if trend_data:
+            f.write("<h2>Trend Analysis</h2>\n")
+            for variable, trend in trend_data.items():
+                f.write(f"<h3>Variable: {variable}</h3>\n")
+                f.write(trend.to_html(index=False))
+        else:
+            f.write("<h2>Trend Analysis</h2>\n")
+            f.write("<p>No trend data available for the selected variables.</p>\n")
+
+        f.write("<h2>Raw Data</h2>\n")
+        f.write(data_df.to_html(index=False))
+
+    print(f"Report generation complete. Report saved at {output_path}.")
+
+
+def acsexplorer_pipeline_by_location(
+    address,
+    variables,
+    year_range,
+    dataset, 
+    output_path
+    ):
+    """
+    Generate a report for a given address by fetching related Census data.
+
+    Parameters:
+        address (str): The address to analyze.
+        variables (list): The list of variable names to analyze (e.g., [B28002_001E]).
+        year_range (tuple): The range of years (start_year, end_year).
+        dataset (str): The dataset name (default: 'acs5').
+        output_path (str): The file path for the generated report.
+
+    Returns:
+        dict: A dictionary containing analysis results, plots, and report paths.
+    """
+    import os
+
+    results = {}
+
+    # Step 1: Geocoding
+    print(f"Step 1: Getting geographic information for address: {address}...")
+    geo_info = acsexplorer_get_geo_info(address)
+    state = geo_info["state"]
+    county = geo_info["county"]
+    tract = geo_info["tract"]
+    geo_filter = f"state:{state} county:{county} tract:{tract}"
+    print(f"Geographic information: {geo_info}")
+    results["geo_info"] = geo_info
+
+    # Step 2: Analyze Trends
+    print(f"Step 2: Analyzing trends for variable {variables}...")
+    trend_data = acsexplorer_analyze_trends(variables, "tract", year_range, dataset)
+    results["trend_data"] = trend_data
+    if trend_data.empty:
+        print(f"No data found for variable {variables} in the specified range.")
+    else:
+        print(f"Trend analysis completed for variable: {variables}.")
+
+    # Step 3: Visualize Trends
+    print(f"Step 3: Visualizing trends for variable: {variables}...")
+    plot_path = acsexplorer_visualize_trends(trend_data, variables)
+    results["trend_plot"] = plot_path
+
+    # Step 4: Generate Report
+    print(f"Step 4: Generating report...")
+    acsexplorer_generate_report(trend_data, variables, output_path)
+
+    print("Pipeline (by location) completed successfully!")
+    return results
+
+
+def acsexplorer_pipeline_by_keyword(keyword, geography, year_range, dataset, output_path):
+    """
+    Pipeline to search by keyword, analyze trends, and generate a report.
+
+    Parameters:
+        keyword (str): The keyword to search for.
+        geography (str): The geographic resolution (state, county, tract).
+        year_range (tuple): The range of years (start_year, end_year).
+        dataset (str): The dataset name (default: 'acs5').
+        output_path (str): The output file path for the report.
+
+    Returns:
+        dict: Results of the pipeline.
+    """
+    results = {}
+
+    # Step 1: Topic Search
+    print(f"Step 1: Searching for variables related to '{keyword}'...")
+    df, df_shortlist, df_group = acsexplorer_topic_search(keyword, include_shortlist=True)
+
+    if df.empty:
+        print("No matching variables found.")
+        return {"status": "No matching variables found"}
+
+    results["topic_search"] = {"df": df, "df_shortlist": df_shortlist, "df_group": df_group}
+
+    variable_groups = df_shortlist["Group"].unique()
+    variables = df[df["Group"].isin(variable_groups)]["Variable Name"].unique()
+
+    if not variables.any():
+        print("No variables found for trend analysis.")
+        return {"status": "No variables found for trend analysis"}
+
+    # Step 2: Analyze trends 
+    print(f"Step 2: Analyzing trends for variable: {variables[0]}...")
+    trend_data = acsexplorer_analyze_trends(variables[0], geography, year_range, dataset)
+
+    if trend_data.empty:
+        print("No trend data available.")
+        results["trends"] = "No trend data available"
+    else:
+        results["trends"] = trend_data
+
+    # Step 3: Generate the report
+    print(f"Step 3: Generating report...")
+    acsexplorer_generate_report(trend_data, variables, output_path)
+
+    return results
